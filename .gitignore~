@@ -1,0 +1,11 @@
+bin/*
+CMakeFiles/*
+cocos2d/*
+lib/*
+linux-build/*
+proj.ios/*
+proj.tizen/*
+proj.win32/*
+proj.win10/*
+proj.ios_mac/*
+proj.android/*
