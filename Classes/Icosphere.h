@@ -30,9 +30,6 @@ using IndexedMesh=std::pair<VertexList, TriangleList>;
 using Lookup=std::map<std::pair<uint32_t, uint32_t>, uint32_t>;
 class Icosphere {
 public:
-    Icosphere();
-    Icosphere(const Icosphere& orig);
-    virtual ~Icosphere();
     static IndexedMesh make_icosphere(int subdivisions);
 private:
 
