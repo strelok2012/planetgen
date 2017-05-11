@@ -13,15 +13,7 @@
 
 #include "Icosphere.h"
 
-Icosphere::Icosphere() {
-}
 
-Icosphere::Icosphere(const Icosphere& orig) {
-}
-
-Icosphere::~Icosphere() {
-}
- 
 namespace icosahedron
 {
 const float X=.525731112119133606f;
