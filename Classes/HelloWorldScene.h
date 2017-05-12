@@ -12,6 +12,7 @@ public:
     
     // a selector callback
     void menuCloseCallback(cocos2d::Ref* pSender);
+    void midpoint(std::vector<cocos2d::Vec2> &points, unsigned iLeft, unsigned iRight, unsigned length, float r);
     
     // implement the "static create()" method manually
     CREATE_FUNC(HelloWorld);
