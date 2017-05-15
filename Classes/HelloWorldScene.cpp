@@ -5,6 +5,7 @@
 #include "3d/CCObjLoader.h"
 #include <random>
 #include <cmath>
+#include <algorithm>
 
 USING_NS_CC;
 
@@ -29,7 +30,7 @@ bool HelloWorld::init() {
     draw3d->setPosition(Vec2(origin.x + visibleSize.width / 2,
             origin.y + visibleSize.height / 2));
 
-    auto draw2d = DrawNode::create(0.1f);
+    draw2d = DrawNode::create(0.1f);
     /*draw2d->setPosition(Vec2(origin.x,
             origin.y));*/
     //this->addChild(draw2d, 2);
@@ -50,10 +51,10 @@ bool HelloWorld::init() {
     auto ret = tinyobj::LoadObj(shapes, materials, fullPath.c_str());
     int scale = 200;
     int uvSize = 2048;
-    auto uvColor = Color4F(1, 1, 1, 1);
+    auto uvColor = Color4F(1, 1, 1, 0.4f);
     auto uvRadius = 3.0f;
-    auto uvRoughness = 0.5f;
-    auto uvPrecision = 3.0f;
+    auto uvRoughness = 0.55f;
+    auto uvPrecision = 3.5f;
 
     auto renderTexture = RenderTexture::create(uvSize, uvSize);
     renderTexture->beginWithClear(0, 0, 0, 0.5f); // black
@@ -65,11 +66,24 @@ bool HelloWorld::init() {
             auto vertexNum = mesh.positions.size() / 3;
             std::vector<std::vector <std::pair < std::pair<cocos2d::Vec3, Color4F>, cocos2d::Vec2>>> allFaces;
             std::vector<std::pair < std::pair<cocos2d::Vec3, Color4F>, cocos2d::Vec2>> tmpFaces;
+            std::vector<std::pair < cocos2d::Vec3, Color4F>> usedVerticles;
             for (unsigned int k = 0; k < vertexNum; ++k) {
-                auto randColor = Color4F((float) dis(gen), (float) dis(gen), (float) dis(gen), 1);
+                bool inUsed = false;
+                auto randColor = Color4F((float) dis(gen), (float) dis(gen), (float) dis(gen), (float) dis(gen));
+                for (auto& usedV : usedVerticles) {
+                    if (usedV.first == cocos2d::Vec3(mesh.positions[k * 3], mesh.positions[k * 3 + 1], mesh.positions[k * 3 + 2])) {
+                        randColor = usedV.second;
+                        inUsed = true;
+                    }
+                }
                 tmpFaces.push_back({
                     {cocos2d::Vec3(mesh.positions[k * 3], mesh.positions[k * 3 + 1], mesh.positions[k * 3 + 2]), randColor}, cocos2d::Vec2(mesh.texcoords[k * 2], mesh.texcoords[k * 2 + 1])
                 });
+
+                if (!inUsed) {
+                    usedVerticles.push_back({cocos2d::Vec3(mesh.positions[k * 3], mesh.positions[k * 3 + 1], mesh.positions[k * 3 + 2]), randColor});
+                }
+
                 if (tmpFaces.size() == 3) {
                     allFaces.push_back(tmpFaces);
                     tmpFaces.clear();
@@ -97,12 +111,34 @@ bool HelloWorld::init() {
                 std::uniform_real_distribution<> angleDis(0, 2 * M_PI);
 
                 auto lengthVector = second - first;
-                auto circleRadius = sqrt(3) * lengthVector.length() / 6;
-                std::uniform_real_distribution<> radiusDis(0, circleRadius);
+                auto aLength = lengthVector.length();
 
                 auto angle = angleDis(gen);
+
+                //CCLOG("%f %f %f", uvTriangleCenter.x, radius, angle);
+
+                auto checkVector = cocos2d::Vec2(uvTriangleCenter.x + aLength * sin(angle), uvTriangleCenter.y + aLength * cos(angle));
+
+                auto checkFirst = getIntersectPoint(uvTriangle[0], uvTriangle[1], uvTriangleCenter, checkVector);
+                auto checkSecond = getIntersectPoint(uvTriangle[1], uvTriangle[2], uvTriangleCenter, checkVector);
+                auto checkThird = getIntersectPoint(uvTriangle[0], uvTriangle[2], uvTriangleCenter, checkVector);
+
+                auto moveRadius = 0.f;
+                auto moveVec = cocos2d::Vec2::ZERO;
+                if (checkFirst != cocos2d::Vec2::ZERO) {
+                    moveVec = checkFirst - uvTriangleCenter;
+                    moveRadius = moveVec.length();
+                } else if (checkSecond != cocos2d::Vec2::ZERO) {
+                    moveVec = checkSecond - uvTriangleCenter;
+                    moveRadius = moveVec.length();
+                } else if (checkThird != cocos2d::Vec2::ZERO) {
+                    moveVec = checkThird - uvTriangleCenter;
+                    moveRadius = moveVec.length();
+                }
+
+                std::uniform_real_distribution<> radiusDis(0, 0.9f * moveRadius);
                 auto radius = radiusDis(gen);
-                CCLOG("%f %f %f", uvTriangleCenter.x, radius, angle);
+
                 uvTriangleCenter.x = uvTriangleCenter.x + radius * sin(angle);
                 uvTriangleCenter.y = uvTriangleCenter.y + radius * cos(angle);
 
@@ -110,13 +146,73 @@ bool HelloWorld::init() {
                 auto secondCenter = (second + third) / 2;
                 auto thirdCenter = (first + third) / 2;
 
-                auto firstInnerLine = midpointDisplacement(firstCenter, uvTriangleCenter, uvRoughness, uvPrecision);
-                auto secondInnerLine = midpointDisplacement(secondCenter, uvTriangleCenter, uvRoughness, uvPrecision);
-                auto thirdInnerLine = midpointDisplacement(thirdCenter, uvTriangleCenter, uvRoughness, uvPrecision);
+                auto firstInnerLine = midpointDisplacement(firstCenter, uvTriangleCenter, uvRoughness, uvTriangle);
+                auto secondInnerLine = midpointDisplacement(secondCenter, uvTriangleCenter, uvRoughness, uvTriangle);
+                auto thirdInnerLine = midpointDisplacement(thirdCenter, uvTriangleCenter, uvRoughness, uvTriangle);
 
-                draw2d->drawPoly(firstInnerLine.data(), firstInnerLine.size(), false, Color4F(0, 1, 0, 1));
-                draw2d->drawPoly(secondInnerLine.data(), secondInnerLine.size(), false, Color4F(0, 1, 0, 1));
-                draw2d->drawPoly(thirdInnerLine.data(), thirdInnerLine.size(), false, Color4F(0, 1, 0, 1));
+                //draw2d->drawPoly(firstInnerLine.data(), firstInnerLine.size(), false, Color4F(1, 0, 0, 1));
+                //draw2d->drawPoly(secondInnerLine.data(), secondInnerLine.size(), false, Color4F(0, 1, 0, 1));
+                //draw2d->drawPoly(thirdInnerLine.data(), thirdInnerLine.size(), false, Color4F(0, 0, 1, 1));
+
+                std::vector<cocos2d::Vec2> triangleFan;
+
+                for (unsigned i = 0; i < firstInnerLine.size() - 1; i++) {
+                    std::vector<cocos2d::Vec2> triangle = {first, firstInnerLine[i], firstInnerLine[i + 1]};
+                    draw2d->drawPolygon(triangle.data(), triangle.size(), face[0].first.second, 0, Color4F(1, 1, 0, 0));
+                }
+
+                for (unsigned i = 0; i < thirdInnerLine.size() - 1; i++) {
+                    std::vector<cocos2d::Vec2> triangle = {first, thirdInnerLine[i], thirdInnerLine[i + 1]};
+                    draw2d->drawPolygon(triangle.data(), triangle.size(), face[0].first.second, 0, Color4F(1, 1, 0, 0));
+                }
+
+                for (unsigned i = 0; i < secondInnerLine.size() - 1; i++) {
+                    std::vector<cocos2d::Vec2> triangle = {second, secondInnerLine[i], secondInnerLine[i + 1]};
+                    draw2d->drawPolygon(triangle.data(), triangle.size(), face[1].first.second, 0, Color4F(1, 1, 0, 0));
+                }
+
+                for (unsigned i = 0; i < firstInnerLine.size() - 1; i++) {
+                    std::vector<cocos2d::Vec2> triangle = {second, firstInnerLine[i], firstInnerLine[i + 1]};
+                    draw2d->drawPolygon(triangle.data(), triangle.size(), face[1].first.second, 0, Color4F(1, 1, 0, 0));
+                }
+
+                for (unsigned i = 0; i < thirdInnerLine.size() - 1; i++) {
+                    std::vector<cocos2d::Vec2> triangle = {third, thirdInnerLine[i], thirdInnerLine[i + 1]};
+                    draw2d->drawPolygon(triangle.data(), triangle.size(), face[2].first.second, 0, Color4F(1, 1, 0, 0));
+                }
+
+                for (unsigned i = 0; i < secondInnerLine.size() - 1; i++) {
+                    std::vector<cocos2d::Vec2> triangle = {third, secondInnerLine[i], secondInnerLine[i + 1]};
+                    draw2d->drawPolygon(triangle.data(), triangle.size(), face[2].first.second, 0, Color4F(1, 1, 0, 0));
+                }
+
+
+
+
+
+
+
+
+                /*for (unsigned i = 0; i < secondInnerLine.size() - 1; i++) {
+                    std::vector<cocos2d::Vec2> triangle = {second, secondInnerLine[i], secondInnerLine[i + 1]};
+                    draw2d->drawPolygon(triangle.data(), triangle.size(), face[1].first.second, 0, Color4F(1, 1, 0, 0));
+                }
+
+                for (unsigned i = 0; i < thirdInnerLine.size() - 1; i++) {
+                    std::vector<cocos2d::Vec2> triangle = {second, thirdInnerLine[i], thirdInnerLine[i + 1]};
+                    draw2d->drawPolygon(triangle.data(), triangle.size(), face[1].first.second, 0, Color4F(1, 1, 0, 0));
+                }
+                
+                
+                
+                
+                
+                
+
+                for (unsigned i = 0; i < thirdInnerLine.size() - 1; i++) {
+                    std::vector<cocos2d::Vec2> triangle = {third, thirdInnerLine[i], thirdInnerLine[i + 1]};
+                    draw2d->drawPolygon(triangle.data(), triangle.size(), face[2].first.second, 0, Color4F(1, 1, 0, 0));
+                }*/
 
                 //draw2d->drawDot(uvTriangleCenter, 2.0f, Color4F(1, 1, 1, 1));
             }
@@ -125,35 +221,6 @@ bool HelloWorld::init() {
     } else {
         CCLOG("Error");
     }
-
-    cocos2d::Vec2 start = cocos2d::Vec2(200, 200);
-    cocos2d::Vec2 end = cocos2d::Vec2(200, 600);
-
-    /*std::vector<cocos2d::Vec2> firstEdge;
-    std::vector<cocos2d::Vec2> pts;
-    pts = midpointDisplacement(start, end, 0.2f);
-    draw2d->drawPoly(pts.data(), pts.size(), false, Color4F(1, 1, 1, 1));*/
-
-
-    //std::vector<cocos2d::Vec2> original;
-    // original.push_back(left);
-    // original.push_back(right);
-    //draw2d->drawPoly(original.data(), original.size(), false, Color4F(1, 0, 0, 1));
-
-
-    /*
-        midpoint(points, 0, points.size(), 25, 7.5f);
-    
-        for (auto& point : points) {
-            point.y+=300;
-        }
-
-        draw2d->drawPoly(points.data(), points.size(), false, uvColor);
-        for (auto& point : points) {
-            CCLOG("Point height %f", point.y);
-        }
-
-        CCLOG("MID %d", points.size());*/
 
     draw2d->visit();
     renderTexture->end();
@@ -183,31 +250,73 @@ bool HelloWorld::init() {
     return true;
 }
 
+cocos2d::Vec2 HelloWorld::getIntersectPoint(const cocos2d::Vec2& A, const cocos2d::Vec2& B, const cocos2d::Vec2& C, const cocos2d::Vec2& D) {
+    float S, T;
+
+    if (cocos2d::Vec2::isSegmentIntersect(A, B, C, D) && cocos2d::Vec2::isLineIntersect(A, B, C, D, &S, &T)) {
+        // Vec2 of intersection
+        cocos2d::Vec2 P;
+        P.x = A.x + S * (B.x - A.x);
+        P.y = A.y + S * (B.y - A.y);
+        return P;
+    }
+
+    return cocos2d::Vec2::ZERO;
+}
+
 bool HelloWorld::pointsSort(cocos2d::Vec2 i, cocos2d::Vec2 j) {
     return (i < j);
 }
 
-std::vector<cocos2d::Vec2> HelloWorld::midpointDisplacement(cocos2d::Vec2 &start, cocos2d::Vec2 &end, float r, float precision) {
+std::vector<cocos2d::Vec2> HelloWorld::midpointDisplacement(cocos2d::Vec2 &start, cocos2d::Vec2 &end, float r, std::vector<cocos2d::Vec2> border) {
     auto lengthVector = end - start;
-    int length = (int) (lengthVector.length() / precision);
+    int length = (int) lengthVector.length();
 
     if (length == 0) {
         return {start};
     }
 
-    std::vector<cocos2d::Vec2> points(length);
-    points[0] = start;
-    points[points.size() - 1] = end;
-    midpoint(points, 0, points.size() - 1, r);
+    auto dx = lengthVector.x;
+    auto dy = lengthVector.y;
+
+    cocos2d::Vec2 normal = cocos2d::Vec2(-dy, dx);
+    normal.normalize();
+
+    std::vector<cocos2d::Vec2> points;
+    points.push_back(start);
+    midpoint(points, start, end, normal, 4, r);
+    points.push_back(end);
+
+    //setting verticles on enge if it out of triangle
+    for (auto& point : points) {
+        if (!pointInTriangle(point, border) && !point.equals(start)&& !point.equals(end)) {
+            auto first = getClosestPoint(border[0], border[1], point);
+            auto second = getClosestPoint(border[1], border[2], point);
+            auto third = getClosestPoint(border[0], border[2], point);
+
+            auto firstV = first - point;
+            auto secondV = second - point;
+            auto thirdV = third - point;
+
+            if (firstV.length() < secondV.length() && firstV.length() < thirdV.length()) {
+                point.x = first.x;
+                point.y = first.y;
+            } else if (secondV.length() < firstV.length() && secondV.length() < thirdV.length()) {
+                point.x = second.x;
+                point.y = second.y;
+            } else if (thirdV.length() < firstV.length() && thirdV.length() < secondV.length()) {
+                point.x = third.x;
+                point.y = third.y;
+            }
+        }
+    }
     return points;
 }
 
-void HelloWorld::midpoint(std::vector<cocos2d::Vec2> &points, unsigned iStart, unsigned iEnd, float r) {
-    if (iEnd - iStart < 2) {
+void HelloWorld::midpoint(std::vector<cocos2d::Vec2> &points, cocos2d::Vec2 start, cocos2d::Vec2 end, cocos2d::Vec2 normal, unsigned iters, float r) {
+    if (iters == 0) {
         return;
     }
-    auto start = points[iStart];
-    auto end = points[iEnd];
 
     auto lengthVector = end - start;
     auto length = lengthVector.length();
@@ -217,27 +326,14 @@ void HelloWorld::midpoint(std::vector<cocos2d::Vec2> &points, unsigned iStart, u
 
 
     auto mid = (start + end) / 2;
-    auto dx = lengthVector.x;
-    auto dy = lengthVector.y;
-
-    int idx = floor(iStart + iEnd) / 2;
 
     auto factor = dis(gen);
-    auto normal1 = cocos2d::Vec2(dy, -dx);
-    normal1.normalize();
-    auto normal2 = cocos2d::Vec2(-dy, dx);
-    normal2.normalize();
     cocos2d::Vec2 newPoint;
-    newPoint = mid + factor*normal1;
-    /*if (factor > 0) {
-        newPoint = mid + factor*normal1;
-    } else {
-        newPoint = mid - factor*normal2;
-    }*/
+    newPoint = mid + factor*normal;
 
-    points[idx] = newPoint;
-    midpoint(points, iStart, idx, r);
-    midpoint(points, idx, iEnd, r);
+    midpoint(points, start, newPoint, normal, iters - 1, r);
+    points.push_back(newPoint);
+    midpoint(points, newPoint, end, normal, iters - 1, r);
 }
 
 void HelloWorld::menuCloseCallback(Ref* pSender) {
@@ -254,4 +350,24 @@ void HelloWorld::menuCloseCallback(Ref* pSender) {
     //_eventDispatcher->dispatchEvent(&customEndEvent);
 
 
+}
+
+float sign(cocos2d::Vec2 p1, cocos2d::Vec2 p2, cocos2d::Vec2 p3) {
+    return (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y);
+}
+
+bool HelloWorld::pointInTriangle(cocos2d::Vec2 pt, std::vector<cocos2d::Vec2> triangle) {
+    bool b1, b2, b3;
+
+    b1 = sign(pt, triangle[0], triangle[1]) <= 0.0f;
+    b2 = sign(pt, triangle[1], triangle[2]) <= 0.0f;
+    b3 = sign(pt, triangle[2], triangle[0]) <= 0.0f;
+
+    return ((b1 == b2) && (b2 == b3));
+}
+
+cocos2d::Vec2 HelloWorld::getClosestPoint(cocos2d::Vec2 a, cocos2d::Vec2 b, cocos2d::Vec2 p) {
+    auto v = a - b;
+    v.normalize();
+    return b + v * cocos2d::Vec2::dot(v, p - b);
 }
