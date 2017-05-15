@@ -2,6 +2,7 @@
 #include "SimpleAudioEngine.h"
 #include "Icosphere.h"
 #include "DrawNode3D.h"
+
 #include "3d/CCObjLoader.h"
 #include <random>
 #include <cmath>
@@ -12,6 +13,8 @@ USING_NS_CC;
 Scene* HelloWorld::createScene() {
     return HelloWorld::create();
 }
+
+
 
 // on "init" you need to initialize your instance
 
@@ -30,12 +33,18 @@ bool HelloWorld::init() {
     draw3d->setPosition(Vec2(origin.x + visibleSize.width / 2,
             origin.y + visibleSize.height / 2));
 
+
+
+
     draw2d = DrawNode::create(0.1f);
     /*draw2d->setPosition(Vec2(origin.x,
             origin.y));*/
     //this->addChild(draw2d, 2);
 
-
+    auto triangleDraw = TriangleDraw::create();
+    triangleDraw->setPosition(Vec2(origin.x,
+            origin.y));
+    //this->addChild(triangleDraw, 2);
 
     CCLOG("Bunga");
     std::vector<tinyobj::shape_t> shapes;
@@ -69,7 +78,7 @@ bool HelloWorld::init() {
             std::vector<std::pair < cocos2d::Vec3, Color4F>> usedVerticles;
             for (unsigned int k = 0; k < vertexNum; ++k) {
                 bool inUsed = false;
-                auto randColor = Color4F((float) dis(gen), (float) dis(gen), (float) dis(gen), (float) dis(gen));
+                auto randColor = Color4F((float) dis(gen), (float) dis(gen), (float) dis(gen), (float) 1);
                 for (auto& usedV : usedVerticles) {
                     if (usedV.first == cocos2d::Vec3(mesh.positions[k * 3], mesh.positions[k * 3 + 1], mesh.positions[k * 3 + 2])) {
                         randColor = usedV.second;
@@ -107,7 +116,6 @@ bool HelloWorld::init() {
 
 
                 cocos2d::Vec2 uvTriangleCenter = (face[0].second * uvSize + face[1].second * uvSize + face[2].second * uvSize) / 3;
-
                 std::uniform_real_distribution<> angleDis(0, 2 * M_PI);
 
                 auto lengthVector = second - first;
@@ -139,53 +147,117 @@ bool HelloWorld::init() {
                 std::uniform_real_distribution<> radiusDis(0, 0.9f * moveRadius);
                 auto radius = radiusDis(gen);
 
-                uvTriangleCenter.x = uvTriangleCenter.x + radius * sin(angle);
-                uvTriangleCenter.y = uvTriangleCenter.y + radius * cos(angle);
+                //uvTriangleCenter.x = uvTriangleCenter.x + radius * sin(angle);
+                //uvTriangleCenter.y = uvTriangleCenter.y + radius * cos(angle);
 
-                auto firstCenter = (first + second) / 2;
-                auto secondCenter = (second + third) / 2;
-                auto thirdCenter = (first + third) / 2;
+                Vec2Color firstCenter = {(first + second) / 2, colorAvg(face[0].first.second, face[1].first.second)};
+                Vec2Color secondCenter = {(second + third) / 2, colorAvg(face[1].first.second, face[2].first.second)};
+                Vec2Color thirdCenter = {(first + third) / 2, colorAvg(face[0].first.second, face[2].first.second)};
 
-                auto firstInnerLine = midpointDisplacement(firstCenter, uvTriangleCenter, uvRoughness, uvTriangle);
-                auto secondInnerLine = midpointDisplacement(secondCenter, uvTriangleCenter, uvRoughness, uvTriangle);
-                auto thirdInnerLine = midpointDisplacement(thirdCenter, uvTriangleCenter, uvRoughness, uvTriangle);
+
+                //draw2d->drawDot(firstCenter.vector, 3.0f, firstCenter.color);
+                //draw2d->drawDot(secondCenter.vector, 3.0f, secondCenter.color);
+                //draw2d->drawDot(thirdCenter.vector, 3.0f, thirdCenter.color);
+
+                Vec2Color centerColored = {uvTriangleCenter, colorAvg(face[0].first.second, face[1].first.second, face[2].first.second)};
+
+
+
+                //draw2d->drawDot(centerColored.vector, 3.0f, centerColored.color);
+
+                auto firstInnerLine = midpointDisplacement(firstCenter, centerColored, uvRoughness, uvTriangle);
+                auto secondInnerLine = midpointDisplacement(secondCenter, centerColored, uvRoughness, uvTriangle);
+                auto thirdInnerLine = midpointDisplacement(thirdCenter, centerColored, uvRoughness, uvTriangle);
+
+
+               /* for (unsigned i = 0; i < firstInnerLine.size() - 1; i++) {
+                    std::vector<Vec2Color> triangle = {
+                        {first, face[0].first.second}, firstInnerLine[i], firstInnerLine[i + 1]
+                    };
+                    triangleDraw->drawTriangle(triangle);
+                }
+
+                for (unsigned i = 0; i < thirdInnerLine.size() - 1; i++) {
+                    std::vector<Vec2Color> triangle = {
+                        {first, face[0].first.second}, thirdInnerLine[i], thirdInnerLine[i + 1]
+                    };
+                    triangleDraw->drawTriangle(triangle);
+                }
+
+                for (unsigned i = 0; i < secondInnerLine.size() - 1; i++) {
+                    std::vector<Vec2Color> triangle = {
+                        {second, face[1].first.second}, secondInnerLine[i], secondInnerLine[i + 1]
+                    };
+                    triangleDraw->drawTriangle(triangle);
+                }
+
+                for (unsigned i = 0; i < firstInnerLine.size() - 1; i++) {
+                    std::vector<Vec2Color> triangle = {
+                        {second, face[1].first.second}, firstInnerLine[i], firstInnerLine[i + 1]
+                    };
+                    triangleDraw->drawTriangle(triangle);
+                }
+
+                for (unsigned i = 0; i < thirdInnerLine.size() - 1; i++) {
+                    std::vector<Vec2Color> triangle = {
+                        {third, face[2].first.second}, thirdInnerLine[i], thirdInnerLine[i + 1]
+                    };
+                    triangleDraw->drawTriangle(triangle);
+                }
+
+                for (unsigned i = 0; i < secondInnerLine.size() - 1; i++) {
+                    std::vector<Vec2Color> triangle = {
+                        {third, face[2].first.second}, secondInnerLine[i], secondInnerLine[i + 1]
+                    };
+                    triangleDraw->drawTriangle(triangle);
+                }*/
+
 
                 //draw2d->drawPoly(firstInnerLine.data(), firstInnerLine.size(), false, Color4F(1, 0, 0, 1));
                 //draw2d->drawPoly(secondInnerLine.data(), secondInnerLine.size(), false, Color4F(0, 1, 0, 1));
                 //draw2d->drawPoly(thirdInnerLine.data(), thirdInnerLine.size(), false, Color4F(0, 0, 1, 1));
 
                 std::vector<cocos2d::Vec2> triangleFan;
-
-                for (unsigned i = 0; i < firstInnerLine.size() - 1; i++) {
-                    std::vector<cocos2d::Vec2> triangle = {first, firstInnerLine[i], firstInnerLine[i + 1]};
-                    draw2d->drawPolygon(triangle.data(), triangle.size(), face[0].first.second, 0, Color4F(1, 1, 0, 0));
-                }
-
-                for (unsigned i = 0; i < thirdInnerLine.size() - 1; i++) {
-                    std::vector<cocos2d::Vec2> triangle = {first, thirdInnerLine[i], thirdInnerLine[i + 1]};
-                    draw2d->drawPolygon(triangle.data(), triangle.size(), face[0].first.second, 0, Color4F(1, 1, 0, 0));
+                /*for (unsigned i = 0; i < firstInnerLine.size() - 1; i++) {
+                    draw2d->drawLine(firstInnerLine[i].vector, firstInnerLine[i + 1].vector, Color4F(1, 0, 0, 1));
                 }
 
                 for (unsigned i = 0; i < secondInnerLine.size() - 1; i++) {
-                    std::vector<cocos2d::Vec2> triangle = {second, secondInnerLine[i], secondInnerLine[i + 1]};
-                    draw2d->drawPolygon(triangle.data(), triangle.size(), face[1].first.second, 0, Color4F(1, 1, 0, 0));
-                }
-
-                for (unsigned i = 0; i < firstInnerLine.size() - 1; i++) {
-                    std::vector<cocos2d::Vec2> triangle = {second, firstInnerLine[i], firstInnerLine[i + 1]};
-                    draw2d->drawPolygon(triangle.data(), triangle.size(), face[1].first.second, 0, Color4F(1, 1, 0, 0));
+                    draw2d->drawLine(secondInnerLine[i].vector, secondInnerLine[i + 1].vector, Color4F(1, 0, 0, 1));
                 }
 
                 for (unsigned i = 0; i < thirdInnerLine.size() - 1; i++) {
-                    std::vector<cocos2d::Vec2> triangle = {third, thirdInnerLine[i], thirdInnerLine[i + 1]};
-                    draw2d->drawPolygon(triangle.data(), triangle.size(), face[2].first.second, 0, Color4F(1, 1, 0, 0));
+                    draw2d->drawLine(thirdInnerLine[i].vector, thirdInnerLine[i + 1].vector, Color4F(1, 0, 0, 1));
+                }*/
+
+                for (unsigned i = 0; i < firstInnerLine.size() - 1; i++) {
+                    std::vector<cocos2d::Vec2> triangle = {first, firstInnerLine[i].vector, firstInnerLine[i + 1].vector};
+                    draw2d->drawPolygon(triangle.data(), triangle.size(), firstInnerLine[i + 1].color, 0, Color4F(1, 1, 0, 0));
+                }
+                for (unsigned i = 0; i < thirdInnerLine.size() - 1; i++) {
+                    std::vector<cocos2d::Vec2> triangle = {first, thirdInnerLine[i].vector, thirdInnerLine[i + 1].vector};
+                    draw2d->drawPolygon(triangle.data(), triangle.size(), thirdInnerLine[i + 1].color, 0, Color4F(1, 1, 0, 0));
                 }
 
                 for (unsigned i = 0; i < secondInnerLine.size() - 1; i++) {
-                    std::vector<cocos2d::Vec2> triangle = {third, secondInnerLine[i], secondInnerLine[i + 1]};
-                    draw2d->drawPolygon(triangle.data(), triangle.size(), face[2].first.second, 0, Color4F(1, 1, 0, 0));
+                    std::vector<cocos2d::Vec2> triangle = {second, secondInnerLine[i].vector, secondInnerLine[i + 1].vector};
+                    draw2d->drawPolygon(triangle.data(), triangle.size(), secondInnerLine[i + 1].color, 0, Color4F(1, 1, 0, 0));
                 }
 
+                for (unsigned i = 0; i < firstInnerLine.size() - 1; i++) {
+                    std::vector<cocos2d::Vec2> triangle = {second, firstInnerLine[i].vector, firstInnerLine[i + 1].vector};
+                    draw2d->drawPolygon(triangle.data(), triangle.size(), firstInnerLine[i + 1].color, 0, Color4F(1, 1, 0, 0));
+                }
+
+                for (unsigned i = 0; i < thirdInnerLine.size() - 1; i++) {
+                    std::vector<cocos2d::Vec2> triangle = {third, thirdInnerLine[i].vector, thirdInnerLine[i + 1].vector};
+                    draw2d->drawPolygon(triangle.data(), triangle.size(), thirdInnerLine[i + 1].color, 0, Color4F(1, 1, 0, 0));
+                }
+
+                for (unsigned i = 0; i < secondInnerLine.size() - 1; i++) {
+                    std::vector<cocos2d::Vec2> triangle = {third, secondInnerLine[i].vector, secondInnerLine[i + 1].vector};
+                    draw2d->drawPolygon(triangle.data(), triangle.size(), secondInnerLine[i + 1].color, 0, Color4F(1, 1, 0, 0));
+                }
 
 
 
@@ -250,7 +322,7 @@ bool HelloWorld::init() {
     return true;
 }
 
-cocos2d::Vec2 HelloWorld::getIntersectPoint(const cocos2d::Vec2& A, const cocos2d::Vec2& B, const cocos2d::Vec2& C, const cocos2d::Vec2& D) {
+cocos2d::Vec2 HelloWorld::getIntersectPoint(const cocos2d::Vec2& A, const cocos2d::Vec2& B, const cocos2d::Vec2& C, const cocos2d::Vec2 & D) {
     float S, T;
 
     if (cocos2d::Vec2::isSegmentIntersect(A, B, C, D) && cocos2d::Vec2::isLineIntersect(A, B, C, D, &S, &T)) {
@@ -268,12 +340,12 @@ bool HelloWorld::pointsSort(cocos2d::Vec2 i, cocos2d::Vec2 j) {
     return (i < j);
 }
 
-std::vector<cocos2d::Vec2> HelloWorld::midpointDisplacement(cocos2d::Vec2 &start, cocos2d::Vec2 &end, float r, std::vector<cocos2d::Vec2> border) {
-    auto lengthVector = end - start;
+std::vector<Vec2Color> HelloWorld::midpointDisplacement(Vec2Color &start, Vec2Color &end, float r, std::vector<cocos2d::Vec2> border) {
+    auto lengthVector = end.vector - start.vector;
     int length = (int) lengthVector.length();
 
     if (length == 0) {
-        return {start};
+        return {Vec2Color{start.vector, start.color}};
     }
 
     auto dx = lengthVector.x;
@@ -282,61 +354,61 @@ std::vector<cocos2d::Vec2> HelloWorld::midpointDisplacement(cocos2d::Vec2 &start
     cocos2d::Vec2 normal = cocos2d::Vec2(-dy, dx);
     normal.normalize();
 
-    std::vector<cocos2d::Vec2> points;
+    std::vector<Vec2Color> points;
     points.push_back(start);
-    midpoint(points, start, end, normal, 4, r);
+    midpoint(points, start, end, normal,0, r);
     points.push_back(end);
 
     //setting verticles on enge if it out of triangle
     for (auto& point : points) {
-        if (!pointInTriangle(point, border) && !point.equals(start)&& !point.equals(end)) {
-            auto first = getClosestPoint(border[0], border[1], point);
-            auto second = getClosestPoint(border[1], border[2], point);
-            auto third = getClosestPoint(border[0], border[2], point);
+        if (!pointInTriangle(point.vector, border) && !point.vector.equals(start.vector)&& !point.vector.equals(end.vector)) {
+            auto first = getClosestPoint(border[0], border[1], point.vector);
+            auto second = getClosestPoint(border[1], border[2], point.vector);
+            auto third = getClosestPoint(border[0], border[2], point.vector);
 
-            auto firstV = first - point;
-            auto secondV = second - point;
-            auto thirdV = third - point;
+            auto firstV = first - point.vector;
+            auto secondV = second - point.vector;
+            auto thirdV = third - point.vector;
 
             if (firstV.length() < secondV.length() && firstV.length() < thirdV.length()) {
-                point.x = first.x;
-                point.y = first.y;
+                point.vector.x = first.x;
+                point.vector.y = first.y;
             } else if (secondV.length() < firstV.length() && secondV.length() < thirdV.length()) {
-                point.x = second.x;
-                point.y = second.y;
+                point.vector.x = second.x;
+                point.vector.y = second.y;
             } else if (thirdV.length() < firstV.length() && thirdV.length() < secondV.length()) {
-                point.x = third.x;
-                point.y = third.y;
+                point.vector.x = third.x;
+                point.vector.y = third.y;
             }
         }
     }
     return points;
 }
 
-void HelloWorld::midpoint(std::vector<cocos2d::Vec2> &points, cocos2d::Vec2 start, cocos2d::Vec2 end, cocos2d::Vec2 normal, unsigned iters, float r) {
+void HelloWorld::midpoint(std::vector<Vec2Color> &points, Vec2Color start, Vec2Color end, cocos2d::Vec2 normal, unsigned iters, float r) {
     if (iters == 0) {
         return;
     }
 
-    auto lengthVector = end - start;
+    auto lengthVector = end.vector - start.vector;
     auto length = lengthVector.length();
     std::random_device rd; //Will be used to obtain a seed for the random number engine
     std::mt19937 gen(rd()); //Standard mersenne_twister_engine seeded with rd()
     std::uniform_real_distribution<> dis(-r*length, r * length);
 
 
-    auto mid = (start + end) / 2;
+    auto mid = (start.vector + end.vector) / 2;
 
     auto factor = dis(gen);
-    cocos2d::Vec2 newPoint;
-    newPoint = mid + factor*normal;
+    Vec2Color newPoint;
+    newPoint = {mid + factor*normal, colorAvg(start.color, end.color)};
 
     midpoint(points, start, newPoint, normal, iters - 1, r);
     points.push_back(newPoint);
     midpoint(points, newPoint, end, normal, iters - 1, r);
 }
 
-void HelloWorld::menuCloseCallback(Ref* pSender) {
+void HelloWorld::menuCloseCallback(Ref * pSender) {
     //Close the cocos2d-x game scene and quit the application
     Director::getInstance()->end();
 
@@ -370,4 +442,22 @@ cocos2d::Vec2 HelloWorld::getClosestPoint(cocos2d::Vec2 a, cocos2d::Vec2 b, coco
     auto v = a - b;
     v.normalize();
     return b + v * cocos2d::Vec2::dot(v, p - b);
+}
+
+Color4F HelloWorld::colorAvg(Color4F cFirst, Color4F cSecond, Color4F cThird) {
+    auto avgR = (cFirst.r + cSecond.r + cThird.r) / 3;
+    auto avgG = (cFirst.g + cSecond.g + cThird.g) / 3;
+    auto avgB = (cFirst.b + cSecond.b + cThird.b) / 3;
+    auto avgA = (cFirst.a + cSecond.a + cThird.a) / 3;
+
+    return Color4F(avgR, avgG, avgB, avgA);
+}
+
+Color4F HelloWorld::colorAvg(Color4F cFirst, Color4F cSecond) {
+    auto avgR = (cFirst.r + cSecond.r) / 2;
+    auto avgG = (cFirst.g + cSecond.g) / 2;
+    auto avgB = (cFirst.b + cSecond.b) / 2;
+    auto avgA = (cFirst.a + cSecond.a) / 2;
+
+    return Color4F(avgR, avgG, avgB, avgA);
 }

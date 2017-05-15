@@ -130,6 +130,7 @@ set(GAME_SRC
   Classes/HelloWorldScene.cpp
   Classes/Icosphere.cpp
   Classes/DrawNode3D.cpp
+  Classes/TriangleDraw.cpp
   ${PLATFORM_SPECIFIC_SRC}
 )
 
@@ -138,6 +139,7 @@ set(GAME_HEADERS
   Classes/HelloWorldScene.h
   Classes/Icosphere.h
   Classes/DrawNode3D.h
+  Classes/TriangleDraw.h
   ${PLATFORM_SPECIFIC_HEADERS}
 )
 
