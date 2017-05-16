@@ -43,7 +43,7 @@ class TriangleDraw : public cocos2d::Node {
 public:
     /** creates and initialize a TriangleDraw node */
     static cocos2d::TriangleDraw* create();
-    void drawTriangle(std::vector<Vec2Color> &triangle);
+    void drawAllTriangles(std::vector<std::vector<Vec2Color>> &triangles);
 
     /** Clear the geometry in the node's buffer. */
     void clear();
@@ -68,6 +68,7 @@ public:
     // Overrides
     virtual void draw(cocos2d::Renderer* renderer, const cocos2d::Mat4& transform, uint32_t flags) override;
 
+
 CC_CONSTRUCTOR_ACCESS:
     TriangleDraw();
     virtual ~TriangleDraw();
@@ -85,19 +86,26 @@ protected:
         V2F_C4B b;
         V2F_C4B c;
     };
-    void ensureCapacity(int count);
 
     GLuint _vao;
+    GLuint _vaoVertex;
     GLuint _vbo;
+    GLuint _vboVertex;
 
     int _bufferCapacity;
     GLsizei _bufferCount;
     V2F_C4B* _buffer;
 
+    std::vector<V2F_C4B> _buffer2;
+    std::vector<V2F_C4B> _vertexBuffer;
+
     BlendFunc _blendFunc;
     cocos2d::CustomCommand _customCommand;
 
+    cocos2d::CustomCommand _customCommandVertex;
+
     bool _dirty;
+    bool _dirtyPoints;
 
 private:
     CC_DISALLOW_COPY_AND_ASSIGN(TriangleDraw);

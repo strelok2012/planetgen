@@ -41,10 +41,10 @@ bool HelloWorld::init() {
             origin.y));*/
     //this->addChild(draw2d, 2);
 
-    auto triangleDraw = TriangleDraw::create();
+    triangleDraw = TriangleDraw::create();
     triangleDraw->setPosition(Vec2(origin.x,
             origin.y));
-    //this->addChild(triangleDraw, 2);
+    // this->addChild(triangleDraw, 2);
 
     CCLOG("Bunga");
     std::vector<tinyobj::shape_t> shapes;
@@ -52,7 +52,7 @@ bool HelloWorld::init() {
 
     std::random_device rd; //Will be used to obtain a seed for the random number engine
     std::mt19937 gen(rd()); //Standard mersenne_twister_engine seeded with rd()
-    std::uniform_real_distribution<> dis(0, 1);
+    std::uniform_real_distribution<> dis(0.4f, 1);
 
     auto currentModel = "icosphere-3.obj";
 
@@ -62,12 +62,14 @@ bool HelloWorld::init() {
     int uvSize = 2048;
     auto uvColor = Color4F(1, 1, 1, 0.4f);
     auto uvRadius = 3.0f;
-    auto uvRoughness = 0.55f;
+    auto uvRoughness = 0.0f;
     auto uvPrecision = 3.5f;
 
+    auto sprite = Sprite3D::create(currentModel); //c3b file, created with the FBX-converter
+
     auto renderTexture = RenderTexture::create(uvSize, uvSize);
-    renderTexture->beginWithClear(0, 0, 0, 0.5f); // black
-    draw2d->retain();
+    auto renderTexture2 = RenderTexture::create(uvSize, uvSize);
+
 
     if (ret.empty()) {
         for (auto& shape : shapes) {
@@ -98,14 +100,10 @@ bool HelloWorld::init() {
                     tmpFaces.clear();
                 }
             }
-            for (auto& face : allFaces) {
-                //draw3d->drawLine(face[0].first.first * scale, face[1].first.first * scale, Color4F(0, 1, 0, 1));
-                //draw3d->drawLine(face[1].first.first * scale, face[2].first.first * scale, Color4F(0, 1, 0, 1));
-                //draw3d->drawLine(face[2].first.first * scale, face[0].first.first * scale, Color4F(0, 1, 0, 1));
-                std::vector<cocos2d::Vec2> firstEdge;
-                std::vector<cocos2d::Vec2> secondEdge;
-                std::vector<cocos2d::Vec2> thirdEdge;
 
+
+
+            for (auto& face : allFaces) {
                 cocos2d::Vec2 first = face[0].second*uvSize;
                 cocos2d::Vec2 second = face[1].second*uvSize;
                 cocos2d::Vec2 third = face[2].second*uvSize;
@@ -144,167 +142,77 @@ bool HelloWorld::init() {
                     moveRadius = moveVec.length();
                 }
 
-                std::uniform_real_distribution<> radiusDis(0, 0.9f * moveRadius);
+                std::uniform_real_distribution<> radiusDis(0, 0.7f * moveRadius);
                 auto radius = radiusDis(gen);
 
-                //uvTriangleCenter.x = uvTriangleCenter.x + radius * sin(angle);
-                //uvTriangleCenter.y = uvTriangleCenter.y + radius * cos(angle);
+                uvTriangleCenter.x = uvTriangleCenter.x + radius * sin(angle);
+                uvTriangleCenter.y = uvTriangleCenter.y + radius * cos(angle);
 
                 Vec2Color firstCenter = {(first + second) / 2, colorAvg(face[0].first.second, face[1].first.second)};
                 Vec2Color secondCenter = {(second + third) / 2, colorAvg(face[1].first.second, face[2].first.second)};
                 Vec2Color thirdCenter = {(first + third) / 2, colorAvg(face[0].first.second, face[2].first.second)};
 
-
-                //draw2d->drawDot(firstCenter.vector, 3.0f, firstCenter.color);
-                //draw2d->drawDot(secondCenter.vector, 3.0f, secondCenter.color);
-                //draw2d->drawDot(thirdCenter.vector, 3.0f, thirdCenter.color);
-
                 Vec2Color centerColored = {uvTriangleCenter, colorAvg(face[0].first.second, face[1].first.second, face[2].first.second)};
-
-
-
-                //draw2d->drawDot(centerColored.vector, 3.0f, centerColored.color);
 
                 auto firstInnerLine = midpointDisplacement(firstCenter, centerColored, uvRoughness, uvTriangle);
                 auto secondInnerLine = midpointDisplacement(secondCenter, centerColored, uvRoughness, uvTriangle);
                 auto thirdInnerLine = midpointDisplacement(thirdCenter, centerColored, uvRoughness, uvTriangle);
 
+                std::vector<Vec2Color> pnts = {
+                    {second, face[1].first.second},
+                    {third, face[2].first.second}
+                };
+                //drawTriangles(pnts,{first, face[0].first.second});
 
-               /* for (unsigned i = 0; i < firstInnerLine.size() - 1; i++) {
-                    std::vector<Vec2Color> triangle = {
-                        {first, face[0].first.second}, firstInnerLine[i], firstInnerLine[i + 1]
-                    };
-                    triangleDraw->drawTriangle(triangle);
-                }
-
-                for (unsigned i = 0; i < thirdInnerLine.size() - 1; i++) {
-                    std::vector<Vec2Color> triangle = {
-                        {first, face[0].first.second}, thirdInnerLine[i], thirdInnerLine[i + 1]
-                    };
-                    triangleDraw->drawTriangle(triangle);
-                }
-
-                for (unsigned i = 0; i < secondInnerLine.size() - 1; i++) {
-                    std::vector<Vec2Color> triangle = {
-                        {second, face[1].first.second}, secondInnerLine[i], secondInnerLine[i + 1]
-                    };
-                    triangleDraw->drawTriangle(triangle);
-                }
-
-                for (unsigned i = 0; i < firstInnerLine.size() - 1; i++) {
-                    std::vector<Vec2Color> triangle = {
-                        {second, face[1].first.second}, firstInnerLine[i], firstInnerLine[i + 1]
-                    };
-                    triangleDraw->drawTriangle(triangle);
-                }
-
-                for (unsigned i = 0; i < thirdInnerLine.size() - 1; i++) {
-                    std::vector<Vec2Color> triangle = {
-                        {third, face[2].first.second}, thirdInnerLine[i], thirdInnerLine[i + 1]
-                    };
-                    triangleDraw->drawTriangle(triangle);
-                }
-
-                for (unsigned i = 0; i < secondInnerLine.size() - 1; i++) {
-                    std::vector<Vec2Color> triangle = {
-                        {third, face[2].first.second}, secondInnerLine[i], secondInnerLine[i + 1]
-                    };
-                    triangleDraw->drawTriangle(triangle);
-                }*/
-
-
-                //draw2d->drawPoly(firstInnerLine.data(), firstInnerLine.size(), false, Color4F(1, 0, 0, 1));
-                //draw2d->drawPoly(secondInnerLine.data(), secondInnerLine.size(), false, Color4F(0, 1, 0, 1));
-                //draw2d->drawPoly(thirdInnerLine.data(), thirdInnerLine.size(), false, Color4F(0, 0, 1, 1));
-
-                std::vector<cocos2d::Vec2> triangleFan;
-                /*for (unsigned i = 0; i < firstInnerLine.size() - 1; i++) {
-                    draw2d->drawLine(firstInnerLine[i].vector, firstInnerLine[i + 1].vector, Color4F(1, 0, 0, 1));
-                }
-
-                for (unsigned i = 0; i < secondInnerLine.size() - 1; i++) {
-                    draw2d->drawLine(secondInnerLine[i].vector, secondInnerLine[i + 1].vector, Color4F(1, 0, 0, 1));
-                }
-
-                for (unsigned i = 0; i < thirdInnerLine.size() - 1; i++) {
-                    draw2d->drawLine(thirdInnerLine[i].vector, thirdInnerLine[i + 1].vector, Color4F(1, 0, 0, 1));
-                }*/
-
-                for (unsigned i = 0; i < firstInnerLine.size() - 1; i++) {
-                    std::vector<cocos2d::Vec2> triangle = {first, firstInnerLine[i].vector, firstInnerLine[i + 1].vector};
-                    draw2d->drawPolygon(triangle.data(), triangle.size(), firstInnerLine[i + 1].color, 0, Color4F(1, 1, 0, 0));
-                }
-                for (unsigned i = 0; i < thirdInnerLine.size() - 1; i++) {
-                    std::vector<cocos2d::Vec2> triangle = {first, thirdInnerLine[i].vector, thirdInnerLine[i + 1].vector};
-                    draw2d->drawPolygon(triangle.data(), triangle.size(), thirdInnerLine[i + 1].color, 0, Color4F(1, 1, 0, 0));
-                }
-
-                for (unsigned i = 0; i < secondInnerLine.size() - 1; i++) {
-                    std::vector<cocos2d::Vec2> triangle = {second, secondInnerLine[i].vector, secondInnerLine[i + 1].vector};
-                    draw2d->drawPolygon(triangle.data(), triangle.size(), secondInnerLine[i + 1].color, 0, Color4F(1, 1, 0, 0));
-                }
-
-                for (unsigned i = 0; i < firstInnerLine.size() - 1; i++) {
-                    std::vector<cocos2d::Vec2> triangle = {second, firstInnerLine[i].vector, firstInnerLine[i + 1].vector};
-                    draw2d->drawPolygon(triangle.data(), triangle.size(), firstInnerLine[i + 1].color, 0, Color4F(1, 1, 0, 0));
-                }
-
-                for (unsigned i = 0; i < thirdInnerLine.size() - 1; i++) {
-                    std::vector<cocos2d::Vec2> triangle = {third, thirdInnerLine[i].vector, thirdInnerLine[i + 1].vector};
-                    draw2d->drawPolygon(triangle.data(), triangle.size(), thirdInnerLine[i + 1].color, 0, Color4F(1, 1, 0, 0));
-                }
-
-                for (unsigned i = 0; i < secondInnerLine.size() - 1; i++) {
-                    std::vector<cocos2d::Vec2> triangle = {third, secondInnerLine[i].vector, secondInnerLine[i + 1].vector};
-                    draw2d->drawPolygon(triangle.data(), triangle.size(), secondInnerLine[i + 1].color, 0, Color4F(1, 1, 0, 0));
-                }
-
-
-
-
-
-
-
-                /*for (unsigned i = 0; i < secondInnerLine.size() - 1; i++) {
-                    std::vector<cocos2d::Vec2> triangle = {second, secondInnerLine[i], secondInnerLine[i + 1]};
-                    draw2d->drawPolygon(triangle.data(), triangle.size(), face[1].first.second, 0, Color4F(1, 1, 0, 0));
-                }
-
-                for (unsigned i = 0; i < thirdInnerLine.size() - 1; i++) {
-                    std::vector<cocos2d::Vec2> triangle = {second, thirdInnerLine[i], thirdInnerLine[i + 1]};
-                    draw2d->drawPolygon(triangle.data(), triangle.size(), face[1].first.second, 0, Color4F(1, 1, 0, 0));
-                }
+                drawTriangles(firstInnerLine,{first, face[0].first.second});
+                 drawTriangles(thirdInnerLine,{first, face[0].first.second});
                 
-                
-                
-                
-                
-                
+                 drawPolygons(firstInnerLine,{first, face[0].first.second});
+                 drawPolygons(thirdInnerLine,{first, face[0].first.second});
 
-                for (unsigned i = 0; i < thirdInnerLine.size() - 1; i++) {
-                    std::vector<cocos2d::Vec2> triangle = {third, thirdInnerLine[i], thirdInnerLine[i + 1]};
-                    draw2d->drawPolygon(triangle.data(), triangle.size(), face[2].first.second, 0, Color4F(1, 1, 0, 0));
-                }*/
 
-                //draw2d->drawDot(uvTriangleCenter, 2.0f, Color4F(1, 1, 1, 1));
+
+                 drawTriangles(secondInnerLine,{second, face[1].first.second});
+                 drawTriangles(firstInnerLine,{second, face[1].first.second});
+                
+                 drawPolygons(secondInnerLine,{second, face[1].first.second});
+                 drawPolygons(firstInnerLine,{second, face[1].first.second});
+
+                 drawTriangles(thirdInnerLine,{third, face[2].first.second});
+                 drawTriangles(secondInnerLine,{third, face[2].first.second});
+                
+                 drawPolygons(thirdInnerLine,{third, face[2].first.second});
+                 drawPolygons(secondInnerLine,{third, face[2].first.second});
+
             }
+            renderTexture->beginWithClear(0, 0, 0, 0.5f); // black
+            triangleDraw->retain();
+            triangleDraw->drawAllTriangles(allTriangles);
+            triangleDraw->visit();
+            renderTexture->end();
+            renderTexture->retain();
 
+
+            renderTexture2->beginWithClear(0, 0, 0, 0.5f); // black
+            draw2d->retain();
+            drawAllPolygons();
+            draw2d->visit();
+            renderTexture2->end();
+            renderTexture2->retain();
         }
     } else {
         CCLOG("Error");
     }
 
-    draw2d->visit();
-    renderTexture->end();
-    renderTexture->retain();
-    renderTexture->setPosition(Vec2(origin.x + visibleSize.width / 2,
-            origin.y + visibleSize.height / 2));
+
+    /*renderTexture->setPosition(Vec2(origin.x + visibleSize.width / 2,
+            origin.y + visibleSize.height / 2));*/
     //this->addChild(renderTexture, 2);
 
     auto rotation = RotateBy::create(30, Vec3(0, 360, 0));
     draw3d->runAction(RepeatForever::create(rotation));
 
-    auto sprite = Sprite3D::create(currentModel); //c3b file, created with the FBX-converter
+
     renderTexture->setScale(-1.0f);
     sprite->setScale(200.f); //sets the object scale in float
     sprite->setPosition(Vec2(origin.x + visibleSize.width / 2,
@@ -313,7 +221,10 @@ bool HelloWorld::init() {
     sprite->setTexture(textSprite->getTexture());
     //sprite->setTexture("balltex.png");
     renderTexture->saveToFile("kungalai.png", Image::Format::PNG, true, [sprite] (RenderTexture* texture, const std::string & kunga) {
-        CCLOG(kunga.c_str());
+        sprite->setTexture("/home/strelok/.config/MyGame/kungalai.png");
+    });
+
+    renderTexture2->saveToFile("kungalai_2.png", Image::Format::PNG, true, [sprite] (RenderTexture* texture, const std::string & kunga) {
         sprite->setTexture("/home/strelok/.config/MyGame/kungalai.png");
     });
     this->addChild(sprite, 3); //adds sprite to scene, z-index: 1
@@ -356,7 +267,7 @@ std::vector<Vec2Color> HelloWorld::midpointDisplacement(Vec2Color &start, Vec2Co
 
     std::vector<Vec2Color> points;
     points.push_back(start);
-    midpoint(points, start, end, normal,0, r);
+    midpoint(points, start, end, normal, 3, r);
     points.push_back(end);
 
     //setting verticles on enge if it out of triangle
@@ -460,4 +371,29 @@ Color4F HelloWorld::colorAvg(Color4F cFirst, Color4F cSecond) {
     auto avgA = (cFirst.a + cSecond.a) / 2;
 
     return Color4F(avgR, avgG, avgB, avgA);
+}
+
+void HelloWorld::drawTriangles(std::vector<Vec2Color> &points, Vec2Color verticle) {
+    for (unsigned i = 0; i < points.size() - 1; i++) {
+        allTriangles.push_back({
+            verticle, points[i], points[i + 1]
+        });
+    }
+}
+
+void HelloWorld::drawPolygons(std::vector<Vec2Color> &points, Vec2Color verticle) {
+    for (unsigned i = 0; i < points.size() - 1; i++) {
+        std::vector<Vec2Color> triangle;
+        triangle.push_back(verticle);
+        triangle.push_back(points[i]);
+        triangle.push_back(points[i + 1]);
+        allPolygons.push_back(triangle);
+    }
+}
+
+void HelloWorld::drawAllPolygons() {
+    for (auto& poly : allPolygons) {
+        std::vector<cocos2d::Vec2> triangle = {poly[0].vector, poly[1].vector, poly[2].vector};
+        draw2d->drawPolygon(triangle.data(), triangle.size(), poly[1].color, 0, Color4F(1, 1, 0, 0));
+    }
 }

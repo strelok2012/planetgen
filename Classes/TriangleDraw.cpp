@@ -67,21 +67,10 @@ TriangleDraw* TriangleDraw::create() {
     return ret;
 }
 
-void TriangleDraw::ensureCapacity(int count) {
-    CCASSERT(count >= 0, "capacity must be >= 0");
-
-    if (_bufferCount + count > _bufferCapacity) {
-        _bufferCapacity += MAX(_bufferCapacity, count);
-        _buffer = (V2F_C4B*) realloc(_buffer, _bufferCapacity * sizeof (V2F_C4B));
-    }
-}
-
 bool TriangleDraw::init() {
     _blendFunc = BlendFunc::ALPHA_PREMULTIPLIED;
 
     setGLProgramState(GLProgramState::getOrCreateWithGLProgramName(GLProgram::SHADER_NAME_POSITION_COLOR));
-
-    ensureCapacity(512);
 
     if (Configuration::getInstance()->supportsShareableVAO()) {
         glGenVertexArrays(1, &_vao);
@@ -90,7 +79,23 @@ bool TriangleDraw::init() {
 
     glGenBuffers(1, &_vbo);
     glBindBuffer(GL_ARRAY_BUFFER, _vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof (V2F_C4B) * _bufferCapacity, _buffer, GL_STREAM_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof (V2F_C4B) * _buffer2.size(), _buffer2.data(), GL_STREAM_DRAW);
+
+    glEnableVertexAttribArray(GLProgram::VERTEX_ATTRIB_POSITION);
+    glVertexAttribPointer(GLProgram::VERTEX_ATTRIB_POSITION, 2, GL_FLOAT, GL_FALSE, sizeof (V2F_C4B), 0);
+
+    glEnableVertexAttribArray(GLProgram::VERTEX_ATTRIB_COLOR);
+    glVertexAttribPointer(GLProgram::VERTEX_ATTRIB_COLOR, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof (V2F_C4B), (GLvoid *) offsetof(V2F_C4B, colors));
+
+
+    if (Configuration::getInstance()->supportsShareableVAO()) {
+        glGenVertexArrays(1, &_vaoVertex);
+        GL::bindVAO(_vaoVertex);
+    }
+
+    glGenBuffers(1, &_vboVertex);
+    glBindBuffer(GL_ARRAY_BUFFER, _vboVertex);
+    glBufferData(GL_ARRAY_BUFFER, sizeof (V2F_C4B) * _vertexBuffer.size(), _vertexBuffer.data(), GL_STREAM_DRAW);
 
     glEnableVertexAttribArray(GLProgram::VERTEX_ATTRIB_POSITION);
     glVertexAttribPointer(GLProgram::VERTEX_ATTRIB_POSITION, 2, GL_FLOAT, GL_FALSE, sizeof (V2F_C4B), 0);
@@ -133,47 +138,77 @@ void TriangleDraw::onDraw(const Mat4 &transform, uint32_t flags) {
     glProgram->setUniformLocationWith1f(glProgram->getUniformLocation("u_alpha"), _displayedOpacity / 255.0);
     GL::blendFunc(_blendFunc.src, _blendFunc.dst);
 
+
     if (_dirty) {
         glBindBuffer(GL_ARRAY_BUFFER, _vbo);
-        glBufferData(GL_ARRAY_BUFFER, sizeof (V2F_C4B) * _bufferCapacity, _buffer, GL_STREAM_DRAW);
+        glBufferData(GL_ARRAY_BUFFER, sizeof (V2F_C4B) * _buffer2.size(), _buffer2.data(), GL_STREAM_DRAW);
+
+        glBindBuffer(GL_ARRAY_BUFFER, _vboVertex);
+        glBufferData(GL_ARRAY_BUFFER, sizeof (V2F_C4B) * _vertexBuffer.size(), _vertexBuffer.data(), GL_STREAM_DRAW);
         _dirty = false;
     }
     if (Configuration::getInstance()->supportsShareableVAO()) {
         GL::bindVAO(_vao);
-    } 
-    glDrawArrays(GL_TRIANGLES, 0, _bufferCount);
+    } else {
+        GL::enableVertexAttribs(GL::VERTEX_ATTRIB_FLAG_POS_COLOR_TEX);
+
+        glBindBuffer(GL_ARRAY_BUFFER, _vbo);
+        // vertex
+        glVertexAttribPointer(GLProgram::VERTEX_ATTRIB_POSITION, 2, GL_FLOAT, GL_FALSE, sizeof (V2F_C4B), 0);
+
+        // color
+        glVertexAttribPointer(GLProgram::VERTEX_ATTRIB_COLOR, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof (V2F_C4B), (GLvoid *) offsetof(V2F_C4B, colors));
+    }
+
+    glDrawArrays(GL_TRIANGLES, 0, _buffer2.size());
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-    CC_INCREMENT_GL_DRAWN_BATCHES_AND_VERTICES(1, _bufferCount);
+    CC_INCREMENT_GL_DRAWN_BATCHES_AND_VERTICES(1, _buffer2.size());
+
+
+    if (_dirtyPoints) {
+        glBindBuffer(GL_ARRAY_BUFFER, _vboVertex);
+        glBufferData(GL_ARRAY_BUFFER, sizeof (V2F_C4B) * _vertexBuffer.size(), _vertexBuffer.data(), GL_STREAM_DRAW);
+        _dirtyPoints = false;
+    }
+    if (Configuration::getInstance()->supportsShareableVAO()) {
+        GL::bindVAO(_vaoVertex);
+    } else {
+        GL::enableVertexAttribs(GL::VERTEX_ATTRIB_FLAG_POS_COLOR_TEX);
+
+        glBindBuffer(GL_POINTS, _vboVertex);
+        // vertex
+        glVertexAttribPointer(GLProgram::VERTEX_ATTRIB_POSITION, 2, GL_FLOAT, GL_FALSE, sizeof (V2F_C4B), 0);
+
+        // color
+        glVertexAttribPointer(GLProgram::VERTEX_ATTRIB_COLOR, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof (V2F_C4B), (GLvoid *) offsetof(V2F_C4B, colors));
+    }
+    
+    glPointSize(3.0f);
+    glDrawArrays(GL_POINTS, 0, _vertexBuffer.size());
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    CC_INCREMENT_GL_DRAWN_BATCHES_AND_VERTICES(1, _vertexBuffer.size());
+    CHECK_GL_ERROR_DEBUG();
+
+
+
     CHECK_GL_ERROR_DEBUG();
 }
 
-void TriangleDraw::drawTriangle(std::vector<Vec2Color> &triangle) {
-    unsigned int vertex_count = 3;
-    ensureCapacity(vertex_count);
+void TriangleDraw::drawAllTriangles(std::vector<std::vector<Vec2Color>> &triangles) {
+    for (auto& triangle : triangles) {
+        _buffer2.emplace_back(V2F_C4B{triangle[0].vector, Color4B(triangle[0].color)});
+        _buffer2.emplace_back(V2F_C4B{triangle[1].vector, Color4B(triangle[1].color)});
+        _buffer2.emplace_back(V2F_C4B{triangle[2].vector, Color4B(triangle[2].color)});
 
-    STA_Triangle *triangles = (STA_Triangle *) (_buffer + _bufferCount);
-    STA_Triangle *cursor = triangles;
+        _vertexBuffer.emplace_back(V2F_C4B{triangle[0].vector, Color4B(255, 0, 0, 255)});
+        _vertexBuffer.emplace_back(V2F_C4B{triangle[1].vector, Color4B(255, 255, 255, 255)});
+        _vertexBuffer.emplace_back(V2F_C4B{triangle[2].vector, Color4B(255, 255, 255, 255)});
+    }
 
-    STA_Triangle tmp = {
-        {triangle[0].vector, Color4B(triangle[0].color)},
-        {triangle[1].vector, Color4B(triangle[1].color)},
-        {triangle[2].vector, Color4B(triangle[2].color)},
-    };
-
-    *cursor++ = tmp;
-
-    /* V3F_C4B a = {Vec3(triangle[0].vector.x, triangle[0].vector.y, 0), Color4B(triangle[0].color)};
-     V3F_C4B b = {Vec3(triangle[1].vector.x, triangle[1].vector.y, 0), Color4B(triangle[1].color)};
-     V3F_C4B c = {Vec3(triangle[2].vector.x, triangle[2].vector.y, 0), Color4B(triangle[2].color)};
-
-     V3F_C4B *lines = (V3F_C4B *) (_buffer + _bufferCount);
-     lines[0] = a;
-     lines[1] = b;
-     lines[2] = c;*/
-
-    _bufferCount += vertex_count;
     _dirty = true;
+    _dirtyPoints = true;
 
 }
 
