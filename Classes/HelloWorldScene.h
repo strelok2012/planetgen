@@ -4,8 +4,17 @@
 #include "cocos2d.h"
 #include "TriangleDraw.h"
 
+struct icoVertex {
+    cocos2d::Vec3 coords;
+    cocos2d::Vec2 uvCoords;
+    std::vector<unsigned> neighbours;
+    cocos2d::Color4F color;
+};
+
 class HelloWorld : public cocos2d::Scene {
 public:
+
+
     static cocos2d::Scene* createScene();
 
     cocos2d::DrawNode* draw2d;
@@ -43,6 +52,8 @@ public:
 
     cocos2d::Color4F colorAvg(cocos2d::Color4F cFirst, cocos2d::Color4F cSecond, cocos2d::Color4F cThird);
     cocos2d::Color4F colorAvg(cocos2d::Color4F cFirst, cocos2d::Color4F cSecond);
+
+    unsigned findByCoords(std::vector<icoVertex> graph, cocos2d::Vec3 coords);
     // implement the "static create()" method manually
     CREATE_FUNC(HelloWorld);
 };

@@ -25,6 +25,7 @@ struct midpointStruct {
     std::vector<cocos2d::Vec2> border;
 };
 
+
 // on "init" you need to initialize your instance
 
 bool HelloWorld::init() {
@@ -47,7 +48,7 @@ bool HelloWorld::init() {
 
 
 
-    draw2d = DrawNode::create(0.1f);
+    draw2d = DrawNode::create(3.0f);
     /*draw2d->setPosition(Vec2(origin.x,
             origin.y));*/
     //this->addChild(draw2d, 2);
@@ -73,7 +74,7 @@ bool HelloWorld::init() {
     int uvSize = 2048;
     auto uvColor = Color4F(1, 1, 1, 0.4f);
     auto uvRadius = 3.0f;
-    auto uvRoughness = 0.0f;
+    auto uvRoughness = 0.3f;
     auto uvPrecision = 3.5f;
 
     auto sprite = Sprite3D::create(currentModel); //c3b file, created with the FBX-converter
@@ -83,20 +84,24 @@ bool HelloWorld::init() {
 
     std::vector<midpointStruct> midpoints;
 
+    std::vector<icoVertex> icoGraph;
+
 
     if (ret.empty()) {
         for (auto& shape : shapes) {
             auto mesh = shape.mesh;
             auto vertexNum = mesh.positions.size() / 3;
+            CCLOG("VERTEX NUM %d", (int) vertexNum);
             std::vector<std::vector <std::pair < std::pair<cocos2d::Vec3, Color4F>, cocos2d::Vec2>>> allFaces;
             std::vector<std::pair < std::pair<cocos2d::Vec3, Color4F>, cocos2d::Vec2>> tmpFaces;
-            std::vector<std::pair < cocos2d::Vec3, Color4F>> usedVerticles;
+            std::vector<std::pair < std::pair<cocos2d::Vec3, Color4F>, cocos2d::Vec2>> usedVerticles;
+
             for (unsigned int k = 0; k < vertexNum; ++k) {
                 bool inUsed = false;
                 auto randColor = Color4F((float) dis(gen), (float) dis(gen), (float) dis(gen), (float) 1);
                 for (auto& usedV : usedVerticles) {
-                    if (usedV.first == cocos2d::Vec3(mesh.positions[k * 3], mesh.positions[k * 3 + 1], mesh.positions[k * 3 + 2])) {
-                        randColor = usedV.second;
+                    if (usedV.first.first == cocos2d::Vec3(mesh.positions[k * 3], mesh.positions[k * 3 + 1], mesh.positions[k * 3 + 2])) {
+                        randColor = usedV.first.second;
                         inUsed = true;
                     }
                 }
@@ -105,7 +110,9 @@ bool HelloWorld::init() {
                 });
 
                 if (!inUsed) {
-                    usedVerticles.push_back({cocos2d::Vec3(mesh.positions[k * 3], mesh.positions[k * 3 + 1], mesh.positions[k * 3 + 2]), randColor});
+                    usedVerticles.push_back({
+                        {cocos2d::Vec3(mesh.positions[k * 3], mesh.positions[k * 3 + 1], mesh.positions[k * 3 + 2]), randColor}, cocos2d::Vec2(mesh.texcoords[k * 2], mesh.texcoords[k * 2 + 1])
+                    });
                 }
 
                 if (tmpFaces.size() == 3) {
@@ -114,64 +121,127 @@ bool HelloWorld::init() {
                 }
             }
 
+            CCLOG("USED LENGTH %d", (int) usedVerticles.size());
 
+
+            for (auto& uVert : usedVerticles) {
+                icoVertex vert;
+                vert.coords = uVert.first.first;
+                vert.uvCoords = uVert.second;
+                icoGraph.push_back(vert);
+            }
 
             for (auto& face : allFaces) {
-                cocos2d::Vec2 first = face[0].second*uvSize;
-                cocos2d::Vec2 second = face[1].second*uvSize;
-                cocos2d::Vec2 third = face[2].second*uvSize;
+                unsigned first = findByCoords(icoGraph, face[0].first.first);
+                unsigned second = findByCoords(icoGraph, face[1].first.first);
+                unsigned third = findByCoords(icoGraph, face[2].first.first);
 
-
-                std::vector<cocos2d::Vec2> uvTriangle = {face[0].second*uvSize, face[1].second*uvSize, face[2].second * uvSize};
-                //draw2d->drawPoly(uvTriangle.data(), uvTriangle.size(), true, uvColor);
-
-
-                cocos2d::Vec2 uvTriangleCenter = (face[0].second * uvSize + face[1].second * uvSize + face[2].second * uvSize) / 3;
-                std::uniform_real_distribution<> angleDis(0, 2 * M_PI);
-
-                auto lengthVector = second - first;
-                auto aLength = lengthVector.length();
-
-                auto angle = angleDis(gen);
-
-                //CCLOG("%f %f %f", uvTriangleCenter.x, radius, angle);
-
-                auto checkVector = cocos2d::Vec2(uvTriangleCenter.x + aLength * sin(angle), uvTriangleCenter.y + aLength * cos(angle));
-
-                auto checkFirst = getIntersectPoint(uvTriangle[0], uvTriangle[1], uvTriangleCenter, checkVector);
-                auto checkSecond = getIntersectPoint(uvTriangle[1], uvTriangle[2], uvTriangleCenter, checkVector);
-                auto checkThird = getIntersectPoint(uvTriangle[0], uvTriangle[2], uvTriangleCenter, checkVector);
-
-                auto moveRadius = 0.f;
-                auto moveVec = cocos2d::Vec2::ZERO;
-                if (checkFirst != cocos2d::Vec2::ZERO) {
-                    moveVec = checkFirst - uvTriangleCenter;
-                    moveRadius = moveVec.length();
-                } else if (checkSecond != cocos2d::Vec2::ZERO) {
-                    moveVec = checkSecond - uvTriangleCenter;
-                    moveRadius = moveVec.length();
-                } else if (checkThird != cocos2d::Vec2::ZERO) {
-                    moveVec = checkThird - uvTriangleCenter;
-                    moveRadius = moveVec.length();
+                if (std::find(icoGraph[first].neighbours.begin(), icoGraph[first].neighbours.end(), second) == icoGraph[first].neighbours.end()) {
+                    icoGraph[first].neighbours.push_back(second);
                 }
 
-                std::uniform_real_distribution<> radiusDis(0, 0.7f * moveRadius);
-                auto radius = radiusDis(gen);
+                if (std::find(icoGraph[first].neighbours.begin(), icoGraph[first].neighbours.end(), third) == icoGraph[first].neighbours.end()) {
+                    icoGraph[first].neighbours.push_back(third);
+                }
 
-                uvTriangleCenter.x = uvTriangleCenter.x + radius * sin(angle);
-                uvTriangleCenter.y = uvTriangleCenter.y + radius * cos(angle);
 
-                midpoints.push_back({
-                    {(first + second) / 2, colorAvg(face[0].first.second, face[1].first.second)},
-                    {(second + third) / 2, colorAvg(face[1].first.second, face[2].first.second)},
-                    {(first + third) / 2, colorAvg(face[0].first.second, face[2].first.second)},
-                    {uvTriangleCenter, colorAvg(face[0].first.second, face[1].first.second, face[2].first.second)},
-                    {first, face[0].first.second},
-                    {second, face[1].first.second},
-                    {third, face[2].first.second},
-                    uvTriangle
-                });
+                if (std::find(icoGraph[second].neighbours.begin(), icoGraph[second].neighbours.end(), first) == icoGraph[second].neighbours.end()) {
+                    icoGraph[second].neighbours.push_back(first);
+                }
+
+                if (std::find(icoGraph[second].neighbours.begin(), icoGraph[second].neighbours.end(), third) == icoGraph[second].neighbours.end()) {
+                    icoGraph[second].neighbours.push_back(third);
+                }
+
+                if (std::find(icoGraph[third].neighbours.begin(), icoGraph[third].neighbours.end(), first) == icoGraph[third].neighbours.end()) {
+                    icoGraph[third].neighbours.push_back(first);
+                }
+
+                if (std::find(icoGraph[third].neighbours.begin(), icoGraph[third].neighbours.end(), second) == icoGraph[third].neighbours.end()) {
+                    icoGraph[third].neighbours.push_back(second);
+                }
+
             }
+
+            /*CCLOG("ICOGRAPG %d", (int) icoGraph.size());
+            auto trianglesCount = icoGraph.size() / 3;
+            for (unsigned int k = 0; k < trianglesCount; ++k) {
+                icoGraph[k * 3].neighbours.push_back(icoGraph[k * 3 + 1]);
+                icoGraph[k * 3].neighbours.push_back(icoGraph[k * 3 + 2]);
+
+                icoGraph[k * 3 + 1].neighbours.push_back(icoGraph[k * 3]);
+                icoGraph[k * 3 + 1].neighbours.push_back(icoGraph[k * 3 + 2]);
+
+                icoGraph[k * 3 + 2].neighbours.push_back(icoGraph[k * 3]);
+                icoGraph[k * 3 + 2].neighbours.push_back(icoGraph[k * 3 + 1]);
+            }*/
+
+
+
+            for (auto& vert : icoGraph) {
+                CCLOG("NEIGHBOUR COUNT %d", (int) vert.neighbours.size());
+                for (auto& neighbour : vert.neighbours) {
+                    //draw2d->drawLine(vert.uvCoords*uvSize, icoGraph[neighbour].uvCoords*uvSize, uvColor);
+                    draw3d->drawLine(vert.coords*scale,icoGraph[neighbour].coords*scale,Color4F(1,0,0,1));
+                }
+            }
+
+            /* for (auto& face : allFaces) {
+                 cocos2d::Vec2 first = face[0].second*uvSize;
+                 cocos2d::Vec2 second = face[1].second*uvSize;
+                 cocos2d::Vec2 third = face[2].second*uvSize;
+
+
+                 std::vector<cocos2d::Vec2> uvTriangle = {face[0].second*uvSize, face[1].second*uvSize, face[2].second * uvSize};
+                 draw2d->drawPoly(uvTriangle.data(), uvTriangle.size(), true, uvColor);
+
+
+                 cocos2d::Vec2 uvTriangleCenter = (face[0].second * uvSize + face[1].second * uvSize + face[2].second * uvSize) / 3;
+                 std::uniform_real_distribution<> angleDis(0, 2 * M_PI);
+
+                 auto lengthVector = second - first;
+                 auto aLength = lengthVector.length();
+
+                 auto angle = angleDis(gen);
+
+                 //CCLOG("%f %f %f", uvTriangleCenter.x, radius, angle);
+
+                 auto checkVector = cocos2d::Vec2(uvTriangleCenter.x + aLength * sin(angle), uvTriangleCenter.y + aLength * cos(angle));
+
+                 auto checkFirst = getIntersectPoint(uvTriangle[0], uvTriangle[1], uvTriangleCenter, checkVector);
+                 auto checkSecond = getIntersectPoint(uvTriangle[1], uvTriangle[2], uvTriangleCenter, checkVector);
+                 auto checkThird = getIntersectPoint(uvTriangle[0], uvTriangle[2], uvTriangleCenter, checkVector);
+
+                 auto moveRadius = 0.f;
+                 auto moveVec = cocos2d::Vec2::ZERO;
+                 if (checkFirst != cocos2d::Vec2::ZERO) {
+                     moveVec = checkFirst - uvTriangleCenter;
+                     moveRadius = moveVec.length();
+                 } else if (checkSecond != cocos2d::Vec2::ZERO) {
+                     moveVec = checkSecond - uvTriangleCenter;
+                     moveRadius = moveVec.length();
+                 } else if (checkThird != cocos2d::Vec2::ZERO) {
+                     moveVec = checkThird - uvTriangleCenter;
+                     moveRadius = moveVec.length();
+                 }
+
+                 std::uniform_real_distribution<> radiusDis(0, 0.7f * moveRadius);
+                 auto radius = radiusDis(gen);
+
+                 uvTriangleCenter.x = uvTriangleCenter.x + radius * sin(angle);
+                 uvTriangleCenter.y = uvTriangleCenter.y + radius * cos(angle);
+
+                 midpoints.push_back({
+                     {(first + second) / 2, colorAvg(face[0].first.second, face[1].first.second)},
+                     {(second + third) / 2, colorAvg(face[1].first.second, face[2].first.second)},
+                     {(first + third) / 2, colorAvg(face[0].first.second, face[2].first.second)},
+                     {uvTriangleCenter, colorAvg(face[0].first.second, face[1].first.second, face[2].first.second)},
+                     {first, face[0].first.second},
+                     {second, face[1].first.second},
+                     {third, face[2].first.second},
+                     uvTriangle
+                 });
+             }*/
 
             for (auto& midpoint : midpoints) {
                 auto firstV = midpoint.centerColored.vector - midpoint.firstCenter.vector;
@@ -239,17 +309,17 @@ bool HelloWorld::init() {
                 drawPolygons(thirdInnerLine, midpoint.third);
                 drawPolygons(secondInnerLine, midpoint.third);
             }
-            renderTexture->beginWithClear(0, 0, 0, 0.5f); // black
+            /*renderTexture->beginWithClear(0, 0, 0, 0.5f); // black
             triangleDraw->retain();
             triangleDraw->drawAllTriangles(allTriangles);
             triangleDraw->visit();
             renderTexture->end();
             renderTexture->retain();
-
+             */
 
             renderTexture2->beginWithClear(0, 0, 0, 0.5f); // black
             draw2d->retain();
-            drawAllPolygons();
+            //drawAllPolygons();
             draw2d->visit();
             renderTexture2->end();
             renderTexture2->retain();
@@ -265,6 +335,7 @@ bool HelloWorld::init() {
 
     auto rotation = RotateBy::create(30, Vec3(0, 360, 0));
     draw3d->runAction(RepeatForever::create(rotation));
+    this->addChild(draw3d,3);
 
 
     renderTexture->setScale(-1.0f);
@@ -274,17 +345,26 @@ bool HelloWorld::init() {
     auto textSprite = renderTexture->getSprite();
     sprite->setTexture(textSprite->getTexture());
     //sprite->setTexture("balltex.png");
-    renderTexture->saveToFile("kungalai.png", Image::Format::PNG, true, [sprite] (RenderTexture* texture, const std::string & kunga) {
+    /*renderTexture->saveToFile("kungalai.png", Image::Format::PNG, true, [sprite] (RenderTexture* texture, const std::string & kunga) {
         sprite->setTexture("/home/strelok/.config/MyGame/kungalai.png");
-    });
+    });*/
 
     renderTexture2->saveToFile("kungalai_2.png", Image::Format::PNG, true, [sprite] (RenderTexture* texture, const std::string & kunga) {
-        sprite->setTexture("/home/strelok/.config/MyGame/kungalai.png");
+        sprite->setTexture("/home/strelok/.config/MyGame/kungalai_2.png");
     });
-    this->addChild(sprite, 3); //adds sprite to scene, z-index: 1
-    sprite->runAction(RepeatForever::create(rotation));
+    //this->addChild(sprite, 3); //adds sprite to scene, z-index: 1
+    //sprite->runAction(RepeatForever::create(rotation));
 
     return true;
+}
+
+unsigned HelloWorld::findByCoords(std::vector<icoVertex> graph, cocos2d::Vec3 coords) {
+    for (unsigned i = 0; i < graph.size(); i++) {
+        if (graph[i].coords == coords) {
+            return i;
+        }
+    }
+    return 0;
 }
 
 cocos2d::Vec2 HelloWorld::getIntersectPoint(const cocos2d::Vec2& A, const cocos2d::Vec2& B, const cocos2d::Vec2& C, const cocos2d::Vec2 & D) {
