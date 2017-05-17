@@ -11,8 +11,16 @@ public:
     cocos2d::DrawNode* draw2d;
     cocos2d::TriangleDraw* triangleDraw;
 
+    std::random_device rd;
+
     std::vector<std::vector<Vec2Color>> allTriangles;
     std::vector<std::vector<Vec2Color>> allPolygons;
+
+    int midpointMinIters = 1;
+    int midpointMaxIters = 4;
+
+    int midpointMinLength = 99999;
+    int midpointMaxLength = 0;
 
     virtual bool init();
 
@@ -22,8 +30,8 @@ public:
 
     void drawTriangles(std::vector<Vec2Color> &points, Vec2Color verticle);
     void drawPolygons(std::vector<Vec2Color> &points, Vec2Color verticle);
-    
-    
+
+
     void drawAllPolygons();
     std::vector<Vec2Color> midpointDisplacement(Vec2Color &start, Vec2Color &end, float r, std::vector<cocos2d::Vec2> border);
 

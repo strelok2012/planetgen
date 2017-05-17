@@ -14,11 +14,22 @@ Scene* HelloWorld::createScene() {
     return HelloWorld::create();
 }
 
-
+struct midpointStruct {
+    Vec2Color firstCenter;
+    Vec2Color secondCenter;
+    Vec2Color thirdCenter;
+    Vec2Color centerColored;
+    Vec2Color first;
+    Vec2Color second;
+    Vec2Color third;
+    std::vector<cocos2d::Vec2> border;
+};
 
 // on "init" you need to initialize your instance
 
 bool HelloWorld::init() {
+
+    std::mt19937 gen(rd());
     //////////////////////////////
     // 1. super init first
     if (!Scene::init()) {
@@ -50,8 +61,8 @@ bool HelloWorld::init() {
     std::vector<tinyobj::shape_t> shapes;
     std::vector<tinyobj::material_t> materials;
 
-    std::random_device rd; //Will be used to obtain a seed for the random number engine
-    std::mt19937 gen(rd()); //Standard mersenne_twister_engine seeded with rd()
+    //Will be used to obtain a seed for the random number engine
+    //Standard mersenne_twister_engine seeded with rd()
     std::uniform_real_distribution<> dis(0.4f, 1);
 
     auto currentModel = "icosphere-3.obj";
@@ -69,6 +80,8 @@ bool HelloWorld::init() {
 
     auto renderTexture = RenderTexture::create(uvSize, uvSize);
     auto renderTexture2 = RenderTexture::create(uvSize, uvSize);
+
+    std::vector<midpointStruct> midpoints;
 
 
     if (ret.empty()) {
@@ -148,42 +161,83 @@ bool HelloWorld::init() {
                 uvTriangleCenter.x = uvTriangleCenter.x + radius * sin(angle);
                 uvTriangleCenter.y = uvTriangleCenter.y + radius * cos(angle);
 
-                Vec2Color firstCenter = {(first + second) / 2, colorAvg(face[0].first.second, face[1].first.second)};
-                Vec2Color secondCenter = {(second + third) / 2, colorAvg(face[1].first.second, face[2].first.second)};
-                Vec2Color thirdCenter = {(first + third) / 2, colorAvg(face[0].first.second, face[2].first.second)};
-
-                Vec2Color centerColored = {uvTriangleCenter, colorAvg(face[0].first.second, face[1].first.second, face[2].first.second)};
-
-                auto firstInnerLine = midpointDisplacement(firstCenter, centerColored, uvRoughness, uvTriangle);
-                auto secondInnerLine = midpointDisplacement(secondCenter, centerColored, uvRoughness, uvTriangle);
-                auto thirdInnerLine = midpointDisplacement(thirdCenter, centerColored, uvRoughness, uvTriangle);
-
-                std::vector<Vec2Color> pnts = {
+                midpoints.push_back({
+                    {(first + second) / 2, colorAvg(face[0].first.second, face[1].first.second)},
+                    {(second + third) / 2, colorAvg(face[1].first.second, face[2].first.second)},
+                    {(first + third) / 2, colorAvg(face[0].first.second, face[2].first.second)},
+                    {uvTriangleCenter, colorAvg(face[0].first.second, face[1].first.second, face[2].first.second)},
+                    {first, face[0].first.second},
                     {second, face[1].first.second},
-                    {third, face[2].first.second}
-                };
-                //drawTriangles(pnts,{first, face[0].first.second});
+                    {third, face[2].first.second},
+                    uvTriangle
+                });
+            }
 
-                drawTriangles(firstInnerLine,{first, face[0].first.second});
-                 drawTriangles(thirdInnerLine,{first, face[0].first.second});
-                
-                 drawPolygons(firstInnerLine,{first, face[0].first.second});
-                 drawPolygons(thirdInnerLine,{first, face[0].first.second});
+            for (auto& midpoint : midpoints) {
+                auto firstV = midpoint.centerColored.vector - midpoint.firstCenter.vector;
+                auto secondV = midpoint.centerColored.vector - midpoint.secondCenter.vector;
+                auto thirdV = midpoint.centerColored.vector - midpoint.thirdCenter.vector;
+
+                int firstLength = (int) firstV.length();
+                int secondLength = (int) secondV.length();
+                int thirdLength = (int) thirdV.length();
+
+                if (firstLength > midpointMaxLength) {
+                    midpointMaxLength = firstLength;
+                }
+
+                if (secondLength > midpointMaxLength) {
+                    midpointMaxLength = secondLength;
+                }
+
+                if (thirdLength > midpointMaxLength) {
+                    midpointMaxLength = thirdLength;
+                }
+
+                if (firstLength < midpointMinLength) {
+                    midpointMinLength = firstLength;
+                }
+
+                if (secondLength < midpointMinLength) {
+                    midpointMinLength = secondLength;
+                }
+
+                if (thirdLength < midpointMinLength) {
+                    midpointMinLength = thirdLength;
+                }
 
 
 
-                 drawTriangles(secondInnerLine,{second, face[1].first.second});
-                 drawTriangles(firstInnerLine,{second, face[1].first.second});
-                
-                 drawPolygons(secondInnerLine,{second, face[1].first.second});
-                 drawPolygons(firstInnerLine,{second, face[1].first.second});
 
-                 drawTriangles(thirdInnerLine,{third, face[2].first.second});
-                 drawTriangles(secondInnerLine,{third, face[2].first.second});
-                
-                 drawPolygons(thirdInnerLine,{third, face[2].first.second});
-                 drawPolygons(secondInnerLine,{third, face[2].first.second});
+            }
 
+            CCLOG("MAX LENGTH %d", midpointMaxLength);
+            CCLOG("MIN LENGTH %d", midpointMinLength);
+
+            for (auto& midpoint : midpoints) {
+                auto firstInnerLine = midpointDisplacement(midpoint.firstCenter, midpoint.centerColored, uvRoughness, midpoint.border);
+                auto secondInnerLine = midpointDisplacement(midpoint.secondCenter, midpoint.centerColored, uvRoughness, midpoint.border);
+                auto thirdInnerLine = midpointDisplacement(midpoint.thirdCenter, midpoint.centerColored, uvRoughness, midpoint.border);
+
+                drawTriangles(firstInnerLine, midpoint.first);
+                drawTriangles(thirdInnerLine, midpoint.first);
+
+                drawPolygons(firstInnerLine, midpoint.first);
+                drawPolygons(thirdInnerLine, midpoint.first);
+
+
+
+                drawTriangles(secondInnerLine, midpoint.second);
+                drawTriangles(firstInnerLine, midpoint.second);
+
+                drawPolygons(secondInnerLine, midpoint.second);
+                drawPolygons(firstInnerLine, midpoint.second);
+
+                drawTriangles(thirdInnerLine, midpoint.third);
+                drawTriangles(secondInnerLine, midpoint.third);
+
+                drawPolygons(thirdInnerLine, midpoint.third);
+                drawPolygons(secondInnerLine, midpoint.third);
             }
             renderTexture->beginWithClear(0, 0, 0, 0.5f); // black
             triangleDraw->retain();
@@ -255,6 +309,8 @@ std::vector<Vec2Color> HelloWorld::midpointDisplacement(Vec2Color &start, Vec2Co
     auto lengthVector = end.vector - start.vector;
     int length = (int) lengthVector.length();
 
+    int iters = (int) ceil(((float) length / midpointMaxLength) * midpointMaxIters);
+
     if (length == 0) {
         return {Vec2Color{start.vector, start.color}};
     }
@@ -267,7 +323,7 @@ std::vector<Vec2Color> HelloWorld::midpointDisplacement(Vec2Color &start, Vec2Co
 
     std::vector<Vec2Color> points;
     points.push_back(start);
-    midpoint(points, start, end, normal, 3, r);
+    midpoint(points, start, end, normal, iters, r);
     points.push_back(end);
 
     //setting verticles on enge if it out of triangle
@@ -303,7 +359,7 @@ void HelloWorld::midpoint(std::vector<Vec2Color> &points, Vec2Color start, Vec2C
 
     auto lengthVector = end.vector - start.vector;
     auto length = lengthVector.length();
-    std::random_device rd; //Will be used to obtain a seed for the random number engine
+
     std::mt19937 gen(rd()); //Standard mersenne_twister_engine seeded with rd()
     std::uniform_real_distribution<> dis(-r*length, r * length);
 
