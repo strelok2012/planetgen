@@ -334,8 +334,8 @@ bool HelloWorld::init() {
     //this->addChild(renderTexture, 2);
 
     auto rotation = RotateBy::create(30, Vec3(0, 360, 0));
-    draw3d->runAction(RepeatForever::create(rotation));
-    this->addChild(draw3d,3);
+    //draw3d->runAction(RepeatForever::create(rotation));
+    this->addChild(draw3d,99);
 
 
     renderTexture->setScale(-1.0f);

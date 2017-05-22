@@ -95,16 +95,18 @@ protected:
     void ensureCapacity(int count);
 
     GLuint      _vao;
+    GLuint _vaoVertex;
     GLuint      _vbo;
+    GLuint _vboVertex;
 
-    int         _bufferCapacity;
-    GLsizei     _bufferCount;
-    V3F_C4B*    _buffer;
+    std::vector<V3F_C4B>    _buffer;
+    std::vector<V3F_C4B> _vertexBuffer;
 
     BlendFunc   _blendFunc;
     cocos2d::CustomCommand _customCommand;
 
     bool        _dirty;
+    bool        _dirtyPoints;
 
 private:
     CC_DISALLOW_COPY_AND_ASSIGN(DrawNode3D);
